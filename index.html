@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Временной дневник</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f9;
+            --text-color: #333;
+            --card-bg: #ffffff;
+            --accent-color: #5c6bc0;
+        }
+        [data-theme="dark"] {
+            --bg-color: #1e1e24;
+            --text-color: #f4f4f9;
+            --card-bg: #2a2a32;
+            --accent-color: #7986cb;
+        }
+        [data-theme="vintage"] {
+            --bg-color: #f2e6d0;
+            --text-color: #4a3b32;
+            --card-bg: #fffcf2;
+            --accent-color: #8c6239;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        select, input, textarea, button {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover { opacity: 0.9; }
+
+        .diary-form {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .diary-card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-left: 5px solid var(--accent-color);
+            position: relative;
+        }
+
+        .status {
+            font-weight: bold;
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.85em;
+        }
+        .status.closed { background: #ffebee; color: #c62828; }
+        .status.opened { background: #e8f5e9; color: #2e7d32; }
+
+        /* Анимация распаковки */
+        .unwrap-animation {
+            animation: unwrapEffect 1s ease-out forwards;
+        }
+
+        @keyframes unwrapEffect {
+            0% { transform: scale(0.9) rotateX(90deg); opacity: 0; }
+            100% { transform: scale(1) rotateX(0deg); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>⏳ Временной дневник</h1>
+        <div style="width: 150px;">
+            <select id="themeSelect" onchange="changeTheme()">
+                <option value="light">Светлая</option>
+                <option value="dark">Тёмная</option>
+                <option value="vintage">Винтажная</option>
+            </select>
+        </div>
+    </header>
+
+    <!-- Форма создания -->
+    <div class="diary-form">
+        <h3>Создать новое послание себе</h3>
+        <input type="text" id="titleInput" placeholder="Заголовок записи" required>
+        <textarea id="textInput" rows="4" placeholder="Текст вашего послания..." required></textarea>
+        <label for="dateInput">Дата и время открытия (в будущем):</label>
+        <input type="datetime-local" id="dateInput" required>
+        <button onclick="createEntry()">Запечатать в будущее</button>
+    </div>
+
+    <!-- Лента времени -->
+    <h2>Лента воспоминаний</h2>
+    <div id="timelineList" class="timeline"></div>
+</div>
+
+<script>
+    // Инициализация данных при загрузке
+    document.addEventListener("DOMContentLoaded", () => {
+        loadEntries();
+        setInterval(updateTimers, 1000); // Обновление счетчиков каждую секунду
+    });
+
+    // Смена тем оформления
+    function changeTheme() {
+        const theme = document.getElementById("themeSelect").value;
+        document.documentElement.setAttribute("data-theme", theme);
+    }
+
+    // Сохранение записи
+    function createEntry() {
+        const title = document.getElementById("titleInput").value;
+        const text = document.getElementById("textInput").value;
+        const unlockDateTime = document.getElementById("dateInput").value;
+
+        if (!title || !text || !unlockDateTime) {
+            alert("Пожалуйста, заполните все поля!");
+            return;
+        }
+
+        const unlockTime = new Date(unlockDateTime).getTime();
+        const now = new Date().getTime();
+
+        if (unlockTime <= now) {
+            alert("Время открытия должно быть строго в будущем!");
+            return;
+        }
+
+        const entry = {
+            id: Date.now(),
+            title: title,
+            text: text,
+            unlockTime: unlockTime,
+            createdTime: now
+        };
+
+        let entries = JSON.parse(localStorage.getItem("diary_entries")) || [];
+        entries.push(entry);
+        localStorage.setItem("diary_entries", JSON.stringify(entries));
+
+        // Сброс формы
+        document.getElementById("titleInput").value = "";
+        document.getElementById("textInput").value = "";
+        document.getElementById("dateInput").value = "";
+
+        loadEntries();
+    }
+
+    // Отображение списка
+    function loadEntries() {
+        const listContainer = document.getElementById("timelineList");
+        listContainer.innerHTML = "";
+        
+        let entries = JSON.parse(localStorage.getItem("diary_entries")) || [];
+        
+        // Сортировка по хронологии
+        entries.sort((a, b) => a.unlockTime - b.unlockTime);
+
+        entries.forEach(entry => {
+            const card = document.createElement("div");
+            card.className = "diary-card";
+            card.id = `entry-${entry.id}`;
+            
+            card.innerHTML = `
+                <h3>${entry.title}</h3>
+                <div id="status-${entry.id}"></div>
+                <div id="timer-${entry.id}" style="margin: 10px 0; font-weight: 500;"></div>
+                <div id="content-${entry.id}" style="display:none; margin-top:10px; padding:10px; border-top:1px dashed #ccc;"></div>
+            `;
+            listContainer.appendChild(card);
+        });
+        
+        updateTimers();
+    }
+
+    // Логика таймеров и отображения контента
+    function updateTimers() {
+        let entries = JSON.parse(localStorage.getItem("diary_entries")) || [];
+        const now = new Date().getTime();
+
+        entries.forEach(entry => {
+            const timerEl = document.getElementById(`timer-${entry.id}`);
+            const statusEl = document.getElementById(`status-${entry.id}`);
+            const contentEl = document.getElementById(`content-${entry.id}`);
+            
+            if (!timerEl) return;
+
+            const timeLeft = entry.unlockTime - now;
+
+            if (timeLeft > 0) {
+                // Запись закрыта
+                statusEl.innerHTML = '<span class="status closed">🔒 Закрыто</span>';
+                
+                const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+                timerEl.innerText = `До открытия: ${days}д ${hours}ч ${minutes}м ${seconds}с`;
+                contentEl.style.display = "none";
+            } else {
+                // Запись открыта
+                statusEl.innerHTML = '<span class="status opened">🔓 Открыто</span>';
+                timerEl.innerText = `Доступно с: ${new Date(entry.unlockTime).toLocaleString()}`;
+                
+                // Проверяем, показывается ли уже контент, чтобы не перезапускать анимацию
+                if (contentEl.style.display === "none") {
+                    contentEl.innerHTML = `<p>${entry.text}</p><small style="color:gray;">Создано: ${new Date(entry.createdTime).toLocaleString()}</small>`;
+                    contentEl.style.display = "block";
+                    contentEl.classList.add("unwrap-animation");
+                }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
