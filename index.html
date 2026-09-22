@@ -2,60 +2,56 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Временной дневник</title>
     <style>
         :root {
-            --bg-color: #f4f4f9;
+            --bg-color: #f4f6f9;
             --text-color: #333;
-            --card-bg: #ffffff;
+            --card-bg: #fff;
             --accent-color: #5c6bc0;
         }
         [data-theme="dark"] {
-            --bg-color: #1e1e24;
-            --text-color: #f4f4f9;
-            --card-bg: #2a2a32;
-            --accent-color: #7986cb;
+            --bg-color: #1e1e2e;
+            --text-color: #f8f8f2;
+            --card-bg: #2b2b3a;
+            --accent-color: #ff79c6;
         }
         [data-theme="vintage"] {
-            --bg-color: #f2e6d0;
-            --text-color: #4a3b32;
-            --card-bg: #fffcf2;
-            --accent-color: #8c6239;
+            --bg-color: #f4eae1;
+            --text-color: #5c4033;
+            --card-bg: #fdf8f5;
+            --accent-color: #8b5a2b;
         }
-        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
-            transition: all 0.3s ease;
             margin: 0;
             padding: 20px;
+            transition: all 0.3s ease;
         }
-        
         .container {
             max-width: 800px;
             margin: 0 auto;
         }
-        
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2px solid var(--accent-color);
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
-
         select, input, textarea, button {
+            width: 100%;
             padding: 10px;
-            margin: 5px 0;
+            margin: 10px 0;
             border-radius: 5px;
             border: 1px solid #ccc;
-            width: 100%;
             box-sizing: border-box;
         }
-
+        input[type="file"] {
+            background: var(--card-bg);
+            cursor: pointer;
+        }
         button {
             background-color: var(--accent-color);
             color: white;
@@ -63,9 +59,7 @@
             cursor: pointer;
             font-weight: bold;
         }
-
         button:hover { opacity: 0.9; }
-
         .diary-form {
             background: var(--card-bg);
             padding: 20px;
@@ -73,13 +67,11 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             margin-bottom: 30px;
         }
-
         .timeline {
             display: flex;
             flex-direction: column;
             gap: 15px;
         }
-
         .diary-card {
             background: var(--card-bg);
             padding: 15px;
@@ -88,7 +80,6 @@
             border-left: 5px solid var(--accent-color);
             position: relative;
         }
-
         .status {
             font-weight: bold;
             display: inline-block;
@@ -98,15 +89,25 @@
         }
         .status.closed { background: #ffebee; color: #c62828; }
         .status.opened { background: #e8f5e9; color: #2e7d32; }
-
-        /* Анимация распаковки */
-        .unwrap-animation {
-            animation: unwrapEffect 1s ease-out forwards;
+        .preview-img {
+            max-width: 100%;
+            max-height: 300px;
+            margin-top: 10px;
+            border-radius: 5px;
+            display: block;
         }
-
+        .file-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: var(--accent-color);
+            text-decoration: underline;
+        }
         @keyframes unwrapEffect {
             0% { transform: scale(0.9) rotateX(90deg); opacity: 0; }
             100% { transform: scale(1) rotateX(0deg); opacity: 1; }
+        }
+        .unwrap-animation {
+            animation: unwrapEffect 1s ease-out forwards;
         }
     </style>
 </head>
@@ -129,6 +130,10 @@
         <h3>Создать новое послание себе</h3>
         <input type="text" id="titleInput" placeholder="Заголовок записи" required>
         <textarea id="textInput" rows="4" placeholder="Текст вашего послания..." required></textarea>
+        
+        <label for="fileInput">Прикрепить файл (картинку или документ):</label>
+        <input type="file" id="fileInput">
+
         <label for="dateInput">Дата и время открытия (в будущем):</label>
         <input type="datetime-local" id="dateInput" required>
         <button onclick="createEntry()">Запечатать в будущее</button>
@@ -138,7 +143,6 @@
     <h2>Лента воспоминаний</h2>
     <div id="timelineList" class="timeline"></div>
 </div>
-
 <script>
     // Инициализация данных при загрузке
     document.addEventListener("DOMContentLoaded", () => {
@@ -157,6 +161,7 @@
         const title = document.getElementById("titleInput").value;
         const text = document.getElementById("textInput").value;
         const unlockDateTime = document.getElementById("dateInput").value;
+        const fileInput = document.getElementById("fileInput");
 
         if (!title || !text || !unlockDateTime) {
             alert("Пожалуйста, заполните все поля!");
@@ -171,33 +176,51 @@
             return;
         }
 
-        const entry = {
-            id: Date.now(),
-            title: title,
-            text: text,
-            unlockTime: unlockTime,
-            createdTime: now
+        const proceedWithSave = (fileData = null, fileName = null, fileType = null) => {
+            const entry = {
+                id: Date.now(),
+                title: title,
+                text: text,
+                unlockTime: unlockTime,
+                createdTime: now,
+                file: fileData,
+                fileName: fileName,
+                fileType: fileType
+            };
+
+            let entries = JSON.parse(localStorage.getItem("diary_entries")) || [];
+            entries.push(entry);
+            localStorage.setItem("diary_entries", JSON.stringify(entries));
+
+            // Сброс формы
+            document.getElementById("titleInput").value = "";
+            document.getElementById("textInput").value = "";
+            document.getElementById("dateInput").value = "";
+            document.getElementById("fileInput").value = "";
+
+            loadEntries();
         };
 
-        let entries = JSON.parse(localStorage.getItem("diary_entries")) || [];
-        entries.push(entry);
-        localStorage.setItem("diary_entries", JSON.stringify(entries));
-
-        // Сброс формы
-        document.getElementById("titleInput").value = "";
-        document.getElementById("textInput").value = "";
-        document.getElementById("dateInput").value = "";
-
-        loadEntries();
+        // Если файл прикреплен, считываем его в Base64 string
+        if (fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                proceedWithSave(e.target.result, file.name, file.type);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            proceedWithSave();
+        }
     }
 
     // Отображение списка
     function loadEntries() {
         const listContainer = document.getElementById("timelineList");
         listContainer.innerHTML = "";
-        
+
         let entries = JSON.parse(localStorage.getItem("diary_entries")) || [];
-        
+
         // Сортировка по хронологии
         entries.sort((a, b) => a.unlockTime - b.unlockTime);
 
@@ -205,7 +228,7 @@
             const card = document.createElement("div");
             card.className = "diary-card";
             card.id = `entry-${entry.id}`;
-            
+
             card.innerHTML = `
                 <h3>${entry.title}</h3>
                 <div id="status-${entry.id}"></div>
@@ -214,7 +237,7 @@
             `;
             listContainer.appendChild(card);
         });
-        
+
         updateTimers();
     }
 
@@ -227,7 +250,7 @@
             const timerEl = document.getElementById(`timer-${entry.id}`);
             const statusEl = document.getElementById(`status-${entry.id}`);
             const contentEl = document.getElementById(`content-${entry.id}`);
-            
+
             if (!timerEl) return;
 
             const timeLeft = entry.unlockTime - now;
@@ -235,7 +258,7 @@
             if (timeLeft > 0) {
                 // Запись закрыта
                 statusEl.innerHTML = '<span class="status closed">🔒 Закрыто</span>';
-                
+
                 const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
                 const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
@@ -247,17 +270,30 @@
                 // Запись открыта
                 statusEl.innerHTML = '<span class="status opened">🔓 Открыто</span>';
                 timerEl.innerText = `Доступно с: ${new Date(entry.unlockTime).toLocaleString()}`;
-                
-                // Проверяем, показывается ли уже контент, чтобы не перезапускать анимацию
+
                 if (contentEl.style.display === "none") {
-                    contentEl.innerHTML = `<p>${entry.text}</p><small style="color:gray;">Создано: ${new Date(entry.createdTime).toLocaleString()}</small>`;
+                    let mediaHTML = "";
+                    // Проверяем наличие файла и генерируем нужный тег
+                    if (entry.file) {
+                        if (entry.fileType && entry.fileType.startsWith("image/")) {
+                            mediaHTML = `<img src="${entry.file}" class="preview-img" alt="Вложение">`;
+                        } else {
+                            mediaHTML = `<a href="${entry.file}" download="${entry.fileName}" class="file-link">💾 Скачать файл: ${entry.fileName}</a>`;
+                        }
+                    }
+
+                    contentEl.innerHTML = `
+                        <p>${entry.text}</p>
+                        ${mediaHTML}
+                        <small style="color:gray;">Создано: ${new Date(entry.createdTime).toLocaleString()}</small>
+                    `;
                     contentEl.style.display = "block";
-                    contentEl.classList.add("unwrap-animation");
+                    const cardEl = document.getElementById(`entry-${entry.id}`);
+                    cardEl.classList.add("unwrap-animation");
                 }
             }
         });
     }
 </script>
-
 </body>
 </html>
